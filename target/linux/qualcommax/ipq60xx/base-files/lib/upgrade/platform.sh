@@ -33,7 +33,8 @@ EOF
 
 platform_do_upgrade() {
 	case "$(board_name)" in
-	netgear,wax214)
+	netgear,wax214|\
+	qihoo,360v6)
 		nand_do_upgrade "$1"
 		;;
 	yuncore,fap650)
