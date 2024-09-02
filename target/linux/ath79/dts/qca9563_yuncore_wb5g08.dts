@@ -103,7 +103,7 @@
         status = "okay";
 };
 
-&switch {
+&mdio1 {
         status = "okay";
 };
 
