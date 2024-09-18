@@ -336,6 +336,13 @@ else
 		exit 1; \
 	fi
 
+	cmd_provides=""
+	for f in $$(IDIR_$(1)){,/usr}{/bin,/sbin}/*; do \
+		if [ -f $$$$f ] && [ -x $$$$f ]; then \
+			cmd_provides="$$$${cmd_provides:+$$$$cmd_provides }cmd:$$$$(basename $$$$f)"; \
+		fi; \
+	done ; echo cmd_provides=$$$$cmd_provides; \
+	\
 	$(FAKEROOT) $(STAGING_DIR_HOST)/bin/apk mkpkg \
 	  --info "name:$(1)$$(ABIV_$(1))" \
 	  --info "version:$(VERSION)" \
@@ -344,7 +351,7 @@ else
 	  --info "license:$(LICENSE)" \
 	  --info "origin:$(SOURCE)" \
 	  --info "provides:$$(foreach prov,$$(filter-out $(1)$$(ABIV_$(1)),$(PROVIDES)$$(if $$(ABIV_$(1)), \
-		$(1) $(foreach provide,$(PROVIDES),$(provide)$$(ABIV_$(1))))),$$(prov)=$(VERSION) )" \
+		$(1) $(foreach provide,$(PROVIDES),$(provide)$$(ABIV_$(1))))),$$(prov)=$(VERSION) ) $$$$cmd_provides" \
 	  --script "post-install:$$(ADIR_$(1))/post-install" \
 	  --script "pre-deinstall:$$(ADIR_$(1))/pre-deinstall" \
 	  --info "depends:$$(foreach depends,$$(subst $$(comma),$$(space),$$(subst $$(space),,$$(subst $$(paren_right),,$$(subst $$(paren_left),,$$(Package/$(1)/DEPENDS))))),$$(depends))" \
