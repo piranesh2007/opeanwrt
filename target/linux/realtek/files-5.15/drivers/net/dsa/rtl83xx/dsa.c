@@ -109,6 +109,20 @@ static enum dsa_tag_protocol rtl83xx_get_tag_protocol(struct dsa_switch *ds,
 	return DSA_TAG_PROTO_TRAILER;
 }
 
+static void rtl83xx_vlan_set_pvid(struct rtl838x_switch_priv *priv,
+				  int port, int pvid)
+{
+	/* Set both inner and outer PVID of the port */
+	priv->r->vlan_port_pvid_set(port, PBVLAN_TYPE_INNER, pvid);
+	priv->r->vlan_port_pvid_set(port, PBVLAN_TYPE_OUTER, pvid);
+	priv->r->vlan_port_pvidmode_set(port, PBVLAN_TYPE_INNER,
+					PBVLAN_MODE_UNTAG_AND_PRITAG);
+	priv->r->vlan_port_pvidmode_set(port, PBVLAN_TYPE_OUTER,
+					PBVLAN_MODE_UNTAG_AND_PRITAG);
+
+	priv->ports[port].pvid = pvid;
+}
+
 /* Initialize all VLANS */
 static void rtl83xx_vlan_setup(struct rtl838x_switch_priv *priv)
 {
@@ -132,17 +146,22 @@ static void rtl83xx_vlan_setup(struct rtl838x_switch_priv *priv)
 		info.l2_tunnel_list_id = -1;
 	}
 
-	/* Initialize all vlans 0-4095 */
-	for (int i = 0; i < MAX_VLANS; i ++)
+	/* Initialize normal VLANs 1-4095 */
+	for (int i = 1; i < MAX_VLANS; i ++)
 		priv->r->vlan_set_tagged(i, &info);
 
-	/* reset PVIDs; defaults to 1 on reset */
+	/*
+	 * Initialize the special VLAN 0 and reset PVIDs. The CPU port PVID
+	 * is applied to packets from the CPU for untagged destinations,
+	 * regardless if the actual ingress VID. Any port with untagged
+	 * egress VLAN(s) must therefore be a member of VLAN 0 to support
+	 * CPU port as ingress when VLAN filtering is enabled.
+	 */
 	for (int i = 0; i <= priv->cpu_port; i++) {
-		priv->r->vlan_port_pvid_set(i, PBVLAN_TYPE_INNER, 1);
-		priv->r->vlan_port_pvid_set(i, PBVLAN_TYPE_OUTER, 1);
-		priv->r->vlan_port_pvidmode_set(i, PBVLAN_TYPE_INNER, PBVLAN_MODE_UNTAG_AND_PRITAG);
-		priv->r->vlan_port_pvidmode_set(i, PBVLAN_TYPE_OUTER, PBVLAN_MODE_UNTAG_AND_PRITAG);
+		rtl83xx_vlan_set_pvid(priv, i, 0);
+		info.tagged_ports |= BIT_ULL(i);
 	}
+	priv->r->vlan_set_tagged(0, &info);
 
 	/* Set forwarding action based on inner VLAN tag */
 	for (int i = 0; i < priv->cpu_port; i++)
@@ -153,6 +172,12 @@ static void rtl83xx_setup_bpdu_traps(struct rtl838x_switch_priv *priv)
 {
 	for (int i = 0; i < priv->cpu_port; i++)
 		priv->r->set_receive_management_action(i, BPDU, TRAP2CPU);
+}
+
+static void rtl83xx_setup_lldp_traps(struct rtl838x_switch_priv *priv)
+{
+	for (int i = 0; i < priv->cpu_port; i++)
+		priv->r->set_receive_management_action(i, LLDP, TRAP2CPU);
 }
 
 static void rtl83xx_port_set_salrn(struct rtl838x_switch_priv *priv,
@@ -207,6 +232,7 @@ static int rtl83xx_setup(struct dsa_switch *ds)
 	rtl83xx_vlan_setup(priv);
 
 	rtl83xx_setup_bpdu_traps(priv);
+	rtl83xx_setup_lldp_traps(priv);
 
 	ds->configure_vlan_while_not_filtering = true;
 
@@ -796,7 +822,7 @@ static void rtl93xx_phylink_mac_config(struct dsa_switch *ds, int port,
 					const struct phylink_link_state *state)
 {
 	struct rtl838x_switch_priv *priv = ds->priv;
-	int sds_num, sds_mode;
+	int sds_num;
 	u32 reg;
 
 	pr_info("%s port %d, mode %x, phy-mode: %s, speed %d, link %d\n", __func__,
@@ -811,32 +837,10 @@ static void rtl93xx_phylink_mac_config(struct dsa_switch *ds, int port,
 
 	sds_num = priv->ports[port].sds_num;
 	pr_info("%s SDS is %d\n", __func__, sds_num);
-	if (sds_num >= 0) {
-		switch (state->interface) {
-		case PHY_INTERFACE_MODE_HSGMII:
-			sds_mode = 0x12;
-			break;
-		case PHY_INTERFACE_MODE_1000BASEX:
-			sds_mode = 0x04;
-			break;
-		case PHY_INTERFACE_MODE_XGMII:
-			sds_mode = 0x10;
-			break;
-		case PHY_INTERFACE_MODE_10GBASER:
-		case PHY_INTERFACE_MODE_10GKR:
-			sds_mode = 0x1b; /* 10G 1000X Auto */
-			break;
-		case PHY_INTERFACE_MODE_USXGMII:
-			sds_mode = 0x0d;
-			break;
-		default:
-			pr_err("%s: unknown serdes mode: %s\n",
-			       __func__, phy_modes(state->interface));
-			return;
-		}
-		if (state->interface == PHY_INTERFACE_MODE_10GBASER)
-			rtl9300_serdes_setup(sds_num, state->interface);
-	}
+	if (sds_num >= 0 &&
+	    (state->interface == PHY_INTERFACE_MODE_1000BASEX ||
+	     state->interface == PHY_INTERFACE_MODE_10GBASER))
+		rtl9300_serdes_setup(port, sds_num, state->interface);
 
 	reg = sw_r32(priv->r->mac_force_mode_ctrl(port));
 	reg &= ~(0xf << 3);
@@ -1407,20 +1411,6 @@ static int rtl83xx_vlan_prepare(struct dsa_switch *ds, int port,
 	return 0;
 }
 
-static void rtl83xx_vlan_set_pvid(struct rtl838x_switch_priv *priv,
-				  int port, int pvid)
-{
-	/* Set both inner and outer PVID of the port */
-	priv->r->vlan_port_pvid_set(port, PBVLAN_TYPE_INNER, pvid);
-	priv->r->vlan_port_pvid_set(port, PBVLAN_TYPE_OUTER, pvid);
-	priv->r->vlan_port_pvidmode_set(port, PBVLAN_TYPE_INNER,
-					PBVLAN_MODE_UNTAG_AND_PRITAG);
-	priv->r->vlan_port_pvidmode_set(port, PBVLAN_TYPE_OUTER,
-					PBVLAN_MODE_UNTAG_AND_PRITAG);
-
-	priv->ports[port].pvid = pvid;
-}
-
 static int rtl83xx_vlan_add(struct dsa_switch *ds, int port,
 			    const struct switchdev_obj_port_vlan *vlan,
 			    struct netlink_ext_ack *extack)
@@ -1432,7 +1422,8 @@ static int rtl83xx_vlan_add(struct dsa_switch *ds, int port,
 	pr_debug("%s port %d, vid %d, flags %x\n",
 		__func__, port, vlan->vid, vlan->flags);
 
-	if(!vlan->vid) return 0;
+	/* Let no one mess with our special VLAN 0 */
+	if (!vlan->vid) return 0;
 
 	if (vlan->vid > 4095) {
 		dev_err(priv->dev, "VLAN out of range: %d", vlan->vid);
@@ -1445,10 +1436,20 @@ static int rtl83xx_vlan_add(struct dsa_switch *ds, int port,
 
 	mutex_lock(&priv->reg_mutex);
 
-	if (vlan->flags & BRIDGE_VLAN_INFO_PVID)
-		rtl83xx_vlan_set_pvid(priv, port, vlan->vid);
-	else if (priv->ports[port].pvid == vlan->vid)
-		rtl83xx_vlan_set_pvid(priv, port, 0);
+	/*
+	 * Realtek switches copy frames as-is to/from the CPU. For a proper
+	 * VLAN handling the 12 bit RVID field (= VLAN id) for incoming traffic
+	 * and the 1 bit RVID_SEL field (0 = use inner tag, 1 = use outer tag)
+	 * for outgoing traffic of the CPU tag structure need to be handled. As
+	 * of now no such logic is in place. So for the CPU port keep the fixed
+	 * PVID=0 from initial setup in place and ignore all subsequent settings.
+	 */
+	if (port != priv->cpu_port) {
+		if (vlan->flags & BRIDGE_VLAN_INFO_PVID)
+			rtl83xx_vlan_set_pvid(priv, port, vlan->vid);
+		else if (priv->ports[port].pvid == vlan->vid)
+			rtl83xx_vlan_set_pvid(priv, port, 0);
+	}
 
 	/* Get port memberships of this vlan */
 	priv->r->vlan_tables_read(vlan->vid, &info);
@@ -1491,6 +1492,9 @@ static int rtl83xx_vlan_del(struct dsa_switch *ds, int port,
 
 	pr_debug("%s: port %d, vid %d, flags %x\n",
 		__func__, port, vlan->vid, vlan->flags);
+
+	/* Let no one mess with our special VLAN 0 */
+	if (!vlan->vid) return 0;
 
 	if (vlan->vid > 4095) {
 		dev_err(priv->dev, "VLAN out of range: %d", vlan->vid);
