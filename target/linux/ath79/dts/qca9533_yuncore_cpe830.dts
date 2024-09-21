@@ -43,6 +43,7 @@
                };
 
                wifi {
+                       label = "wifi";
                        function = LED_FUNCTION_WLAN;
                        color = <LED_COLOR_ID_GREEN>;
                        gpios = <&gpio 15 GPIO_ACTIVE_LOW>;
@@ -50,34 +51,36 @@
                };
 
                wan {
+                       label = "wan";
                        function = LED_FUNCTION_WAN;
                        color = <LED_COLOR_ID_GREEN>;
                        gpios = <&gpio 13 GPIO_ACTIVE_LOW>;
                };
 
                lan {
+                       label = "lan";
                        function = LED_FUNCTION_LAN;
                        color = <LED_COLOR_ID_GREEN>;
                        gpios = <&gpio 14 GPIO_ACTIVE_LOW>;
                };
 
                link1 {
-                       label = "cpe830:green:link1";
+                       label = "link1";
                        gpios = <&gpio 1 GPIO_ACTIVE_LOW>;
                };
 
                link2 {
-                       label = "cpe830:green:link2";
+                       label = "link2";
                        gpios = <&gpio 2 GPIO_ACTIVE_LOW>;
                };
 
                link3 {
-                       label = "cpe830:green:link3";
+                       label = "link3";
                        gpios = <&gpio 3 GPIO_ACTIVE_LOW>;
                };
 
                link4 {
-                       label = "cpe830:green:link4";
+                       label = "link4";
                        gpios = <&gpio 0 GPIO_ACTIVE_LOW>;
                };
        };
