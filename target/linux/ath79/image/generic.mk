@@ -3237,7 +3237,7 @@ define Device/yuncore_cpe830
   IMAGE_SIZE := 16000k
   IMAGES += tftp.bin
   IMAGE/tftp.bin := $$(IMAGE/sysupgrade.bin) | yuncore-tftp-header-16m
-  DEVICE_PACKAGES := rssileds -uboot-envtools swconfig
+  DEVICE_PACKAGES := rssileds kmod-ath9k -swconfig
 endef
 TARGET_DEVICES += yuncore_cpe830
 
