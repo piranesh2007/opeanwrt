@@ -279,36 +279,10 @@ static int nct5104d_gpio_probe(struct platform_device *pdev)
 		bank->chip.parent = &pdev->dev;
 		bank->data = data;
 
-		err = gpiochip_add(&bank->chip);
-		if (err) {
-			dev_err(&pdev->dev,
-				"Failed to register gpiochip %d: %d\n",
-				i, err);
-			goto err_gpiochip;
-		}
-	}
-
-	return 0;
-
-err_gpiochip:
-	for (i = i - 1; i >= 0; i--) {
-		struct nct5104d_gpio_bank *bank = &data->bank[i];
-
-		gpiochip_remove (&bank->chip);
-	}
-
-	return err;
-}
-
-static int nct5104d_gpio_remove(struct platform_device *pdev)
-{
-	int i;
-	struct nct5104d_gpio_data *data = platform_get_drvdata(pdev);
-
-	for (i = 0; i < data->nr_bank; i++) {
-		struct nct5104d_gpio_bank *bank = &data->bank[i];
-
-		gpiochip_remove (&bank->chip);
+		err = devm_gpiochip_add_data(&pdev->dev, &bank->chip, bank);
+		if (err)
+			return dev_err_probe(&pdev->dev, err,
+				"Failed to register gpiochip %d", err);
 	}
 
 	return 0;
@@ -402,7 +376,6 @@ static struct platform_driver nct5104d_gpio_driver = {
 		.name	= DRVNAME,
 	},
 	.probe		= nct5104d_gpio_probe,
-	.remove		= nct5104d_gpio_remove,
 };
 
 static int __init nct5104d_gpio_init(void)
