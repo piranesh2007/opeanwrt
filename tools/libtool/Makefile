@@ -38,6 +38,7 @@ endef
 
 define Host/Prepare
 	$(call Host/Prepare/Default)
+	$(call Host/Configure/Default)
 	$(call Host/Uninstall)
 	$(if $(QUILT),,$(call Host/Bootstrap))
 endef
@@ -54,6 +55,7 @@ endef
 
 define Host/Uninstall
 	-$(call Host/Compile/Default,uninstall)
+	-$(call Host/Compile/Default,maintainer-clean) # Clean bootstrap files from the release
 	(cd $(STAGING_DIR_HOST)/share/aclocal/ && rm -f libtool.m4 ltdl.m4 lt~obsolete.m4 ltoptions.m4 ltsugar.m4 ltversion.m4)
 endef
 
