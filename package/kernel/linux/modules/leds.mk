@@ -7,6 +7,26 @@
 
 LEDS_MENU:=LED modules
 
+define KernelPackage/led-class-multicolor
+	 SUBMENU:=$(LEDS_MENU)
+	 TITLE:=LEDs class multi-color support
+	 KCONFIG:=CONFIG_LEDS_CLASS_MULTICOLOR
+	 FILES:=$(LINUX_DIR)/drivers/leds/rgb/leds-class-multicolor.ko
+	 AUTOLOAD:=$(call AutoProbe,led-class-multi-color)
+endef
+
+define KernelPackage/led-class-multi-color/description
+	support for multi color LEDs outputs either integrated
+	multi-color LED elements	(like RGB, RGBW, RGBWA-UV etc.)
+	or standalone LEDs,
+	The multicolor class groups monochrome LEDs and allows controlling
+	two aspects of the final combined color: hue and lightness.
+	This is achieved by adding multi-led nodes layer to the
+	monochrome LED bindings.
+endef
+
+	$(eval $(call KernelPackage,led-class-multi-color))
+
 define KernelPackage/leds-gpio
   SUBMENU:=$(LEDS_MENU)
   TITLE:=GPIO LED support
@@ -15,6 +35,26 @@ define KernelPackage/leds-gpio
   FILES:=$(LINUX_DIR)/drivers/leds/leds-gpio.ko
   AUTOLOAD:=$(call AutoLoad,60,leds-gpio,1)
 endef
+
+
+define KernelPackage/led-group-multicolor
+	 SUBMENU:=$(LEDS_MENU)
+	 TITLE:=LEDs group multi-color support
+	 KCONFIG:= \
+	     CONFIG_LEDS_CLASS_MULTICOLOR \
+	     CONFIG_LEDS_GROUP_MULTICOLOR
+	 FILES:=$(LINUX_DIR)/drivers/leds/rgb/leds-group-multicolor.ko
+	 AUTOLOAD:=$(call AutoProbe,led-group-multi-color)
+endef
+
+define KernelPackage/led-group-multi-color/description
+	 This option enables support for monochrome LEDs that are grouped
+	 into multicolor LEDs which is useful in the case where LEDs of
+	 different colors are physically grouped in a single multi-color LED
+	 and driven by a controller that does not have multi-color support.
+endef
+
+$(eval $(call KernelPackage,led-group-multi-color))
 
 define KernelPackage/leds-gpio/description
  Kernel module for LEDs on GPIO lines
