@@ -48,6 +48,8 @@ PKG_GNULIB_MODS = \
 	strchrnul \
 	tsearch
 
+HOST_BUILD_PARALLEL:=1
+
 include $(INCLUDE_DIR)/host-build.mk
 
 export $(PKG_GNULIB_BASE)=$(HOST_BUILD_DIR)/$(PKG_GNULIB_BASE)/.libs/$(PKG_GNULIB_BASE).a
@@ -60,7 +62,7 @@ HOST_MAKE_FLAGS += \
 	LIBS+='$$$$(if $$$$(findstring $(lastword $(PKG_SUBDIRS)),$$$$(subdir)), $$$$($(PKG_GNULIB_BASE)))' \
 	LIBS+='$$$$(wildcard $$$$($(PKG_GNULIB_BASE)_fallocate-posix))' \
 	LIBS+='$$$$(wildcard $$$$($(PKG_GNULIB_BASE)_tsearch))' \
-	REPLACE_FCNTL=0 REPLACE_FREE=0 REPLACE_FSTAT=0 REPLACE_OPEN=0 \
+	REPLACE_FCNTL=0 REPLACE_FREE=0 REPLACE_FSTAT=0 REPLACE_OBSTACK=0 REPLACE_OPEN=0 \
 	bin_PROGRAMS='$(PKG_PROGRAMS)' EXEEXT=
 
 HOST_CPPFLAGS += "'-I$$$$(top_srcdir)/lib'"
@@ -72,6 +74,7 @@ endif
 HOST_CFLAGS += -Wno-error -fPIC
 
 HOST_CONFIGURE_ARGS += \
+	--enable-maintainer-mode \
 	--without-libintl-prefix \
 	--without-libiconv-prefix \
 	--disable-debuginfod \
@@ -96,8 +99,15 @@ HOST_CONFIGURE_VARS += \
 Hooks/HostConfigure/Pre := Host/Gnulib/Prepare $(Hooks/HostConfigure/Pre)
 Hooks/HostCompile/Pre := Host/Gnulib/Compile $(Hooks/HostCompile/Pre)
 
+define Host/Configure
+	$(call Host/Configure/Default)
+	$(call Host/Uninstall)
+	$(call Host/Configure/Default)
+endef
+
 define Host/Uninstall
 	-$(call Host/Compile/Default,uninstall)
+	-$(call Host/Compile/Default,maintainer-clean) # Clean bootstrap files from the release
 endef
 
 $(eval $(call HostBuild))
