@@ -51,6 +51,8 @@ endef
 
 define Host/Prepare
 	$(call Host/Prepare/Default)
+	$(call Host/Configure/Default)
+	$(call Host/Uninstall)
 	$(if $(QUILT),,$(call Host/Bootstrap))
 endef
 
@@ -69,6 +71,7 @@ endef
 define Host/Uninstall
 	rm -f $(STAGING_DIR_HOST)/bin/install
 	-$(call Host/Compile/Default,uninstall)
+	-$(call Host/Compile/Default,maintainer-clean) # Clean bootstrap files from the release
 endef
 
 $(eval $(call HostBuild))
